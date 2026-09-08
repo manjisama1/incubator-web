@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skeuomorphic Incubator Controller</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --panel-bg: #dbe0e6;
+      --panel-border: #b0b7c0;
+      --panel-shadow: #8a929e;
+      --panel-highlight: #ffffff;
+      --text-dark: #2a3038;
+      --lcd-bg: #829a83;
+      --lcd-text: #112211;
+      --led-off: #441111;
+      --led-on: #ff2222;
+      --led-green-off: #114411;
+      --led-green-on: #22ff22;
+    }
+
+    body {
+      background: radial-gradient(circle, #3a4146 0%, #1e2226 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      color: var(--text-dark);
+      user-select: none;
+    }
+
+    .chassis {
+      background: linear-gradient(145deg, #e6ecf2, #c5cbd1);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 850px;
+      box-shadow: 
+        10px 10px 30px #14171a,
+        -10px -10px 30px #424a52,
+        inset 2px 2px 3px var(--panel-highlight),
+        inset -2px -2px 3px var(--panel-shadow);
+      border: 3px solid #b8bfc6;
+    }
+
+    .header-plate {
+      background: linear-gradient(180deg, #b0b7c0 0%, #d1d7de 100%);
+      padding: 12px 20px;
+      border-radius: 10px;
+      box-shadow: inset 1px 1px 2px #fff, inset -1px -1px 2px #8a929e, 0 3px 6px rgba(0,0,0,0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .brand-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #333a42;
+      text-shadow: 1px 1px 0px #fff;
+    }
+
+    .plate-btn {
+      background: linear-gradient(145deg, #d4dbe2, #9ea5ad);
+      border: 1px solid #7a818a;
+      padding: 8px 18px;
+      font-weight: bold;
+      border-radius: 6px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.3), inset 1px 1px 1px #fff;
+      cursor: pointer;
+      color: #222;
+    }
+
+    .plate-btn:active {
+      box-shadow: inset 2px 2px 5px rgba(0,0,0,0.4);
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media(max-width: 768px) {
+      .grid-container { grid-template-columns: 1fr; }
+    }
+
+    .panel-block {
+      background: linear-gradient(145deg, #d2d8df, #e2e8ef);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: inset 1px 1px 2px #fff, inset -1px -1px 3px #9fa6b0, 0 4px 8px rgba(0,0,0,0.15);
+      border: 1px solid #aeb5be;
+    }
+
+    .panel-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #4a525d;
+      margin-bottom: 12px;
+      text-shadow: 1px 1px 0px #fff;
+      border-bottom: 1px solid #b8bfc8;
+      padding-bottom: 4px;
+    }
+
+    .lcd-display {
+      background: var(--lcd-bg);
+      color: var(--lcd-text);
+      font-family: 'Courier New', Courier, monospace;
+      padding: 12px;
+      border-radius: 6px;
+      box-shadow: inset 3px 3px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.2);
+      border: 2px solid #556655;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .lcd-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .lcd-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+    }
+
+    .led-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--led-off);
+      display: inline-block;
+      border: 1px solid #222;
+      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.8);
+    }
+
+    .led-indicator.active-red {
+      background-color: var(--led-on);
+      box-shadow: 0 0 8px #ff2222, inset 1px 1px 2px #fff;
+    }
+
+    .led-indicator.active-green {
+      background-color: var(--led-green-on);
+      box-shadow: 0 0 8px #22ff22, inset 1px 1px 2px #fff;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 24px;
+      background: #8a929c;
+      border-radius: 12px;
+      box-shadow: inset 2px 2px 4px rgba(0,0,0,0.4);
+      cursor: pointer;
+    }
+
+    .toggle-switch .handle {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(145deg, #ffffff, #d0d5dd);
+      border-radius: 50%;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+      transition: left 0.2s;
+    }
+
+    .toggle-switch.on {
+      background: #4b8b54;
+    }
+
+    .toggle-switch.on .handle {
+      left: 28px;
+    }
+
+    .dial-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .mechanical-disk {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, #889098, #c0c7ce, #788088, #c0c7ce, #889098);
+      border: 6px solid #5a626a;
+      box-shadow: 5px 5px 15px rgba(0,0,0,0.4), inset 2px 2px 5px #fff, inset -2px -2px 5px #000;
+      position: relative;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .mechanical-disk:active {
+      cursor: grabbing;
+    }
+
+    .disk-indent {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #40464d 0%, #889098 100%);
+      box-shadow: inset 2px 2px 3px rgba(0,0,0,0.6);
+    }
+
+    .disk-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #b0b7c0, #788088);
+      border: 2px solid #4a525a;
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .input-knob-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .screw {
+      width: 8px;
+      height: 8px;
+      background: #7a818a;
+      border-radius: 50%;
+      box-shadow: inset 1px 1px 1px #000, 1px 1px 1px #fff;
+      position: relative;
+      display: inline-block;
+    }
+
+    .screw::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 1px;
+      width: 6px;
+      height: 2px;
+      background: #333;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 180px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    input[type="number"] {
+      background: #a3b8a4;
+      border: 2px solid #4a5d4b;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      color: #051505;
+      padding: 4px 8px;
+      border-radius: 4px;
+      width: 70px;
+      box-shadow: inset 2px 2px 3px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chassis">
+    <div class="header-plate">
+      <div>
+        <span class="screw"></span>
+        <span class="brand-title" style="margin-left: 8px;">INCUBATOR PRO</span>
+      </div>
+      <div>
+        <button id="connectBtn" class="plate-btn" onclick="toggleConnect()">CONNECT BLE</button>
+        <span class="screw" style="margin-left: 8px;"></span>
+      </div>
+    </div>
+
+    <div class="grid-container">
+      <div class="panel-block">
+        <div class="panel-title">TELEMETRY & HEATER CONTROLLER</div>
+        <div class="lcd-display">
+          <div>
+            <div class="lcd-label">TEMP READ</div>
+            <div id="tempVal" class="lcd-value">--.- °C</div>
+          </div>
+          <div>
+            <div class="lcd-label">HUMIDITY</div>
+            <div id="humVal" class="lcd-value">--.- %</div>
+          </div>
+        </div>
+
+        <div class="status-row" style="margin-top: 14px;">
+          <span>HEATER RELAY</span>
+          <div><span id="heaterLed" class="led-indicator"></span></div>
+        </div>
+
+        <div class="status-row">
+          <span>CIRCULATION FAN</span>
+          <div><span id="fanLed" class="led-indicator"></span></div>
+        </div>
+
+        <div class="status-row" style="margin-top: 12px; border-top: 1px dashed #a0a7b0; padding-top: 8px;">
+          <span>AUTO HEATER CONTROL</span>
+          <div id="autoTempToggle" class="toggle-switch on" onclick="toggleAutoTemp()">
+            <div class="handle"></div>
+          </div>
+        </div>
+
+        <div class="input-knob-group" style="margin-top: 10px;">
+          <label style="font-size: 0.85rem; font-weight: bold;">SETPOINT (°C):</label>
+          <div>
+            <input type="number" id="tempInput" value="37.50" step="0.1" min="30" max="42" />
+            <button class="plate-btn" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setTemperature()">SET</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-block">
+        <div class="panel-title">EGG TRAY MOTOR CONTROLLER</div>
+        
+        <div class="status-row">
+          <span>MOTOR SPEED (STEPS/S)</span>
+          <input type="number" id="speedInput" value="100" step="10" min="10" max="800" onchange="updateMotorSettings()" />
+        </div>
+
+        <div class="status-row">
+          <span>TURN DURATION (MS)</span>
+          <input type="number" id="durationInput" value="4000" step="500" min="500" max="20000" onchange="updateMotorSettings()" />
+        </div>
+
+        <div class="status-row">
+          <span>AUTO INTERVAL (MS)</span>
+          <input type="number" id="intervalInput" value="600000" step="10000" min="5000" max="86400000" onchange="updateMotorSettings()" />
+        </div>
+
+        <div class="status-row" style="margin-top: 8px;">
+          <span>AUTO TRAY TURN</span>
+          <div id="autoTurnToggle" class="toggle-switch on" onclick="toggleAutoTurn()">
+            <div class="handle"></div>
+          </div>
+        </div>
+
+        <button class="plate-btn" style="width: 100%; margin-top: 10px;" onclick="sendCommand('TURN_TRAY')">FORCE SINGLE TURN</button>
+      </div>
+    </div>
+
+    <div class="grid-container" style="margin-top: 20px;">
+      <div class="panel-block">
+        <div class="panel-title">MANUAL DISK ROTATION CONTROL</div>
+        <div class="dial-wrapper">
+          <div id="manualDisk" class="mechanical-disk">
+            <div class="disk-indent"></div>
+            <div class="disk-center"></div>
+          </div>
+          <div style="font-size: 0.75rem; font-weight: bold; margin-top: 8px; color: #555;">ROTATE WHEEL TO JOG MOTOR</div>
+        </div>
+      </div>
+
+      <div class="panel-block">
+        <div class="panel-title">TEMPERATURE MONITORING GRAPH</div>
+        <div class="chart-container">
+          <canvas id="tempChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-block" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="font-weight: bold; font-size: 0.9rem;">MAIN SYSTEM POWER</div>
+      <div id="pwrToggle" class="toggle-switch on" onclick="toggleMainPower()">
+        <div class="handle"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const RX_UUID      = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+    const TX_UUID      = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+    let bleDevice = null;
+    let rxCharacteristic = null;
+    let autoTempState = true;
+    let autoTurnState = true;
+    let mainPowerState = true;
+
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    const tempChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Temp (°C)',
+          data: [],
+          borderColor: '#ff4444',
+          borderWidth: 2,
+          backgroundColor: 'rgba(255, 68, 68, 0.1)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { display: false },
+          y: { min: 30, max: 45 }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    async function toggleConnect() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+        return;
+      }
+      try {
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "Manjis_Incubator" }],
+          optionalServices: [SERVICE_UUID]
+        });
+        bleDevice.addEventListener('gattserverdisconnected', () => {
+          document.getElementById('connectBtn').textContent = "CONNECT BLE";
+        });
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        rxCharacteristic = await service.getCharacteristic(RX_UUID);
+        const txCharacteristic = await service.getCharacteristic(TX_UUID);
+        await txCharacteristic.startNotifications();
+        txCharacteristic.addEventListener('characteristicvaluechanged', handleTelemetry);
+        document.getElementById('connectBtn').textContent = "DISCONNECT";
+      } catch (e) {
+        alert("Connection Error: " + e);
+      }
+    }
+
+    async function sendCommand(cmd) {
+      if (!rxCharacteristic) return;
+      try {
+        const encoder = new TextEncoder();
+        await rxCharacteristic.writeValue(encoder.encode(cmd));
+      } catch (err) {}
+    }
+
+    function setTemperature() {
+      const val = parseFloat(document.getElementById('tempInput').value).toFixed(2);
+      sendCommand(`SET_TEMP:${val}`);
+    }
+
+    function updateMotorSettings() {
+      const spd = document.getElementById('speedInput').value;
+      const dur = document.getElementById('durationInput').value;
+      const intv = document.getElementById('intervalInput').value;
+      sendCommand(`SET_SPEED:${spd}`);
+      sendCommand(`SET_TURN_DUR:${dur}`);
+      sendCommand(`SET_TURN_INT:${intv}`);
+    }
+
+    function toggleAutoTemp() {
+      autoTempState = !autoTempState;
+      document.getElementById('autoTempToggle').classList.toggle('on', autoTempState);
+      sendCommand(autoTempState ? 'AUTO_ON' : 'AUTO_OFF');
+    }
+
+    function toggleAutoTurn() {
+      autoTurnState = !autoTurnState;
+      document.getElementById('autoTurnToggle').classList.toggle('on', autoTurnState);
+      sendCommand(autoTurnState ? 'AUTO_TURN_ON' : 'AUTO_TURN_OFF');
+    }
+
+    function toggleMainPower() {
+      mainPowerState = !mainPowerState;
+      document.getElementById('pwrToggle').classList.toggle('on', mainPowerState);
+      sendCommand(mainPowerState ? 'PWR_ON' : 'PWR_OFF');
+    }
+
+    function handleTelemetry(event) {
+      const decoder = new TextDecoder('utf-8');
+      const data = JSON.parse(decoder.decode(event.target.value));
+
+      document.getElementById('tempVal').textContent = data.temp.toFixed(2) + " °C";
+      document.getElementById('humVal').textContent = data.hum.toFixed(1) + " %";
+      
+      document.getElementById('heaterLed').className = "led-indicator " + (data.heater ? "active-red" : "");
+      document.getElementById('fanLed').className = "led-indicator " + (data.fan ? "active-green" : "");
+
+      const nowStr = new Date().toLocaleTimeString();
+      tempChart.data.labels.push(nowStr);
+      tempChart.data.datasets[0].data.push(data.temp);
+      if (tempChart.data.labels.length > 20) {
+        tempChart.data.labels.shift();
+        tempChart.data.datasets[0].data.shift();
+      }
+      tempChart.update();
+    }
+
+    const disk = document.getElementById('manualDisk');
+    let isDragging = false;
+    let startAngle = 0;
+    let currentRotation = 0;
+
+    function getAngle(x, y) {
+      const rect = disk.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      return Math.atan2(y - cy, x - cx) * (180 / Math.PI);
+    }
+
+    function startDrag(e) {
+      isDragging = true;
+      const p = e.touches ? e.touches[0] : e;
+      startAngle = getAngle(p.clientX, p.clientY) - currentRotation;
+    }
+
+    function doDrag(e) {
+      if (!isDragging) return;
+      const p = e.touches ? e.touches[0] : e;
+      const newAngle = getAngle(p.clientX, p.clientY);
+      const delta = newAngle - (startAngle + currentRotation);
+
+      if (Math.abs(delta) > 5) {
+        if (delta > 0) {
+          sendCommand('JOG_FWD');
+        } else {
+          sendCommand('JOG_REV');
+        }
+        currentRotation = newAngle - startAngle;
+        disk.style.transform = `rotate(${currentRotation}deg)`;
+      }
+    }
+
+    function stopDrag() {
+      if (isDragging) {
+        isDragging = false;
+        sendCommand('JOG_STOP');
+      }
+    }
+
+    disk.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('mouseup', stopDrag);
+
+    disk.addEventListener('touchstart', startDrag);
+    window.addEventListener('touchmove', doDrag);
+    window.addEventListener('touchend', stopDrag);
+  </script>
+</body>
+</html>

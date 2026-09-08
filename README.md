@@ -33,37 +33,34 @@ A modern, web-controlled egg incubator system powered by ESP32, BLE (Bluetooth L
   * Heater Relay (`GPIO 18`)
   * Fan Relay (`GPIO 19`)
 * **Motor:** 28BYJ-48 Stepper Motor + ULN2003 Driver (`GPIO 13, 12, 14, 27`)
-* **Power & Loads:** 12V Power Supply, 12V Fan, Heating Resistor Array
+* **Power Supplies:** 12V DC Power Supply (for Fan & Heater) & 5V DC Power Supply / USB (for ESP32 & Stepper)
 
 ---
 
 ## 🔌 Wiring & Connections
 
 ```text
-                      +-------------------+
-                      | 12V Power Supply  |
-                      | (+)           (-) |
-                      +--+-------------+--+
-                         |             |
-       +-----------------+             +----------------------------+
-       |                                                            |
- [Relay Module]                                                     |
-  - COM 1 Pin -------------------------+ (12V Input)                |
-  - COM 2 Pin -------------------------+                            |
-  - NO 1 Pin -----> [10x Resistor Array (+)]                        |
-  - NO 2 Pin -----> [12V Fan Red Wire (+)]                          |
-                                                                    |
-  [10x Resistor Array (-)] -----------------------------------------+
-  [12V Fan Black Wire (-)] -----------------------------------------+
-                                                                    |
- [ULN2003 Driver Board]                                             |
-  - VCC Pin ----------------------------------- (From 5V rail)      |
-  - GND Pin --------------------------------------------------------+
-  - Motor Port ---> [5V 28BYJ-48 Stepper Motor]                     |
-                                                                    |
- [ESP32 Board]                                                      |
-  - VIN Pin (5V) -> Relay VCC, DHT (+), ULN2003 (+)                 |
-  - GND Pin --------------------------------------------------------+ (COMMON GND)
+               +-------------------+
+               | 12V Power Supply  |
+               | (+)           (-) |
+               +--+-------------+--+
+                  |             |
+  +---------------+             +------------------------------+
+  |                                                            |
+ [Relay Module (Switches +12V High-Side)]                      |
+  - COM 1 Pin -------------------+ (12V (+))                   |
+  - COM 2 Pin -------------------+                             |
+  - NO 1 Pin -----> [10x Resistor Array (+)]                   |
+  - NO 2 Pin -----> [12V Fan Red Wire (+)]                     |
+                                                               |
+  [10x Resistor Array (-)] ------------------------------------+
+  [12V Fan Black Wire (-)] ------------------------------------+
+
+----------------------------------------------------------------
+
+ [ESP32 & Low-Voltage Logic Side]
+  - VIN Pin (5V) -> Relay VCC, DHT (+), ULN2003 VCC
+  - GND Pin ------> Relay GND, DHT (-), ULN2003 GND (Common 5V GND)
   - GPIO 18 ------> Relay IN1 (Heater Control)
   - GPIO 19 ------> Relay IN2 (Fan Control)
   - GPIO 4  -------> DHT22 Data ("out")

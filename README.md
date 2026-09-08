@@ -1,4 +1,4 @@
-# Incubator Pro 🥚🌡️
+# Incubator Pro 🥚🌡️ 
 
 A modern, web-controlled egg incubator system powered by ESP32, BLE (Bluetooth Low Energy), and a skeuomorphic web dashboard.
 

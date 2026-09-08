@@ -32,22 +32,9 @@ A modern, web-controlled egg incubator system powered by ESP32, BLE (Bluetooth L
 * **Actuators:** 
   * Heater Relay (`GPIO 18`)
   * Fan Relay (`GPIO 19`)
-* **Motor:** Stepper motor driven via ULN2003 or A4988 (`GPIO 13, 12, 14, 27`)
+* **Motor:** 28BYJ-48 Stepper Motor + ULN2003 Driver (`GPIO 13, 12, 14, 27`)
+* **Power & Loads:** 12V Power Supply, 12V Fan, Heating Resistor Array
 
 ---
 
-## 🚀 Quick Start Guide
-
-### 1. Flash the ESP32
-1. Open `main.cpp` in PlatformIO or Arduino IDE.
-2. Install dependencies:
-   * `DHT sensor library`
-   * `AccelStepper`
-3. Upload `main.cpp` to your ESP32 board.
-
-### 2. Launch the Web Dashboard
-1. Open `index.html` in a Web Bluetooth supported browser (**Google Chrome**, **Edge**, or **Brave**).
-2. Click **CONNECT BLE**.
-3. Select **Manjis_Incubator** from the Bluetooth pairing window.
-
-> **Note:** Web Bluetooth requires a secure context (`https://`) or a local host server (`http://localhost`) to connect.
+## 🔌 Wiring & Connections

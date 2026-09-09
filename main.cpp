@@ -28,7 +28,7 @@ AccelStepper stepper(AccelStepper::HALF4WIRE, MOTOR_IN1, MOTOR_IN3, MOTOR_IN2, M
 bool mainPower = true;
 bool autoTempMode = true;
 
-float targetTempSet  = 37.50;
+float targetTempSet = 37.50;
 
 bool fanAlwaysOn = true;
 bool fanManualState = true;
@@ -39,12 +39,13 @@ bool autoTurnEnabled = true;
 unsigned long turnInterval = 600000; 
 unsigned long turnDurationMs = 4000;  
 int turnDirection = 1;                 
-float motorSpeed = 100.0;              
+float motorSpeed = 100.0;             
 
 bool heaterState = false;
 bool fanState = true;
-float validTemp = 37.50;
-float lastValidTemp = 37.50;
+
+float validTemp = -999.0;
+float lastValidTemp = -999.0;
 float smoothedRate = 0.0;
 float heaterDutyCycle = 0.0;
 
@@ -61,6 +62,9 @@ const unsigned long PWM_WINDOW_MS = 10000;
 bool manualJogActive = false;
 int manualJogDir = 1;
 
+bool autoTurnActive = false;
+unsigned long turnStartMs = 0;
+
 BLEServer *pServer = NULL;
 BLECharacteristic *pTxCharacteristic = NULL;
 BLECharacteristic *pRxCharacteristic = NULL;
@@ -74,17 +78,12 @@ void stopMotor() {
   digitalWrite(MOTOR_IN4, LOW);
 }
 
-void rotateEggTray(int dir, unsigned long durationMs, float speed) {
+void startEggTrayTurn(int dir, float speed) {
   if (!mainPower) return;
   stepper.setMaxSpeed(speed);
   stepper.setSpeed(dir * speed);
-  
-  unsigned long start = millis();
-  while (millis() - start < durationMs) {
-    stepper.runSpeed();
-    yield();
-  }
-  stopMotor();
+  turnStartMs = millis();
+  autoTurnActive = true;
 }
 
 void parseCommand(String cmd) {
@@ -98,6 +97,7 @@ void parseCommand(String cmd) {
     heaterState = false;
     fanState = false;
     manualJogActive = false;
+    autoTurnActive = false;
     stopMotor();
   }
   else if (cmd == "AUTO_ON") {
@@ -145,18 +145,21 @@ void parseCommand(String cmd) {
   }
   else if (cmd == "JOG_FWD") {
     manualJogActive = true;
+    autoTurnActive = false;
     manualJogDir = 1;
   }
   else if (cmd == "JOG_REV") {
     manualJogActive = true;
+    autoTurnActive = false;
     manualJogDir = -1;
   }
   else if (cmd == "JOG_STOP") {
     manualJogActive = false;
+    autoTurnActive = false;
     stopMotor();
   }
   else if (cmd == "TURN_TRAY") {
-    rotateEggTray(turnDirection, turnDurationMs, motorSpeed);
+    startEggTrayTurn(turnDirection, motorSpeed);
   }
 }
 
@@ -225,9 +228,16 @@ void loop() {
       stepper.setMaxSpeed(motorSpeed);
       stepper.setSpeed(manualJogDir * motorSpeed);
       stepper.runSpeed();
+    } else if (autoTurnActive) {
+      if (now - turnStartMs < turnDurationMs) {
+        stepper.runSpeed();
+      } else {
+        autoTurnActive = false;
+        stopMotor();
+      }
     } else if (autoTurnEnabled && (now - lastTurnTime >= turnInterval)) {
       lastTurnTime = now;
-      rotateEggTray(turnDirection, turnDurationMs, motorSpeed);
+      startEggTrayTurn(turnDirection, motorSpeed);
     }
 
     if (fanAlwaysOn) {
@@ -249,11 +259,11 @@ void loop() {
       float rawTemp = dht.readTemperature();
       float hum = dht.readHumidity();
 
-      if (!isnan(rawTemp) && rawTemp > 20.0 && rawTemp < 50.0) {
-        if (abs(rawTemp - validTemp) < 3.0 || validTemp == 0.0) {
+      if (!isnan(rawTemp) && rawTemp > 10.0 && rawTemp < 60.0) {
+        if (validTemp < -100.0 || abs(rawTemp - validTemp) < 3.0) {
           validTemp = rawTemp;
 
-          if (lastValidTemp > 0.0) {
+          if (lastValidTemp > -100.0) {
             float instantRate = (validTemp - lastValidTemp) / timeDeltaMin;
             smoothedRate = (0.25 * instantRate) + (0.75 * smoothedRate);
           }

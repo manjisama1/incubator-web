@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Skeuomorphic Incubator Controller</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --panel-bg: #dbe0e6;
@@ -271,6 +270,14 @@
       height: 180px;
       width: 100%;
       margin-top: 10px;
+      background: #1e2226;
+      border-radius: 6px;
+      border: 2px solid #5a626a;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
     }
 
     input[type="number"] {
@@ -314,16 +321,29 @@
           </div>
         </div>
 
+        <!-- HEATER MANUAL TOGGLE -->
         <div class="status-row" style="margin-top: 14px;">
-          <span>HEATER RELAY</span>
-          <div><span id="heaterLed" class="led-indicator"></span></div>
+          <span>HEATER POWER</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="heaterLed" class="led-indicator"></span>
+            <div id="heaterSwitchToggle" class="toggle-switch off" onclick="toggleHeaterPower()">
+              <div class="handle"></div>
+            </div>
+          </div>
         </div>
 
+        <!-- FAN MANUAL TOGGLE -->
         <div class="status-row">
           <span>CIRCULATION FAN</span>
-          <div><span id="fanLed" class="led-indicator"></span></div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="fanLed" class="led-indicator"></span>
+            <div id="fanSwitchToggle" class="toggle-switch on" onclick="toggleFanPower()">
+              <div class="handle"></div>
+            </div>
+          </div>
         </div>
 
+        <!-- AUTO HEATER CONTROL -->
         <div class="status-row" style="margin-top: 12px; border-top: 1px dashed #a0a7b0; padding-top: 8px;">
           <span>AUTO HEATER CONTROL</span>
           <div id="autoTempToggle" class="toggle-switch on" onclick="toggleAutoTemp()">
@@ -384,7 +404,7 @@
       <div class="panel-block">
         <div class="panel-title">TEMPERATURE MONITORING GRAPH</div>
         <div class="chart-container">
-          <canvas id="tempChart"></canvas>
+          <canvas id="tempCanvas"></canvas>
         </div>
       </div>
     </div>
@@ -408,32 +428,53 @@
     let autoTempState = true;
     let autoTurnState = true;
     let mainPowerState = true;
+    let heaterManualState = false;
+    let fanManualState = true;
 
-    const ctx = document.getElementById('tempChart').getContext('2d');
-    const tempChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Temp (°C)',
-          data: [],
-          borderColor: '#ff4444',
-          borderWidth: 2,
-          backgroundColor: 'rgba(255, 68, 68, 0.1)',
-          fill: true,
-          tension: 0.3
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: { display: false },
-          y: { min: 30, max: 45 }
-        },
-        plugins: { legend: { display: false } }
+    // Offline HTML5 Canvas Graph Implementation
+    const canvas = document.getElementById('tempCanvas');
+    const ctx = canvas.getContext('2d');
+    let tempDataPoints = [];
+
+    function renderGraph() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw grid lines
+      ctx.strokeStyle = '#3a4146';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < canvas.height; i += 30) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(canvas.width, i);
+        ctx.stroke();
       }
-    });
+
+      if (tempDataPoints.length < 2) return;
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#ff2222';
+      ctx.lineWidth = 2;
+
+      const minTemp = 30;
+      const maxTemp = 45;
+      const xStep = canvas.width / (tempDataPoints.length - 1);
+
+      tempDataPoints.forEach((val, idx) => {
+        const normalized = (val - minTemp) / (maxTemp - minTemp);
+        const y = canvas.height - (normalized * canvas.height);
+        const x = idx * xStep;
+
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+
+      ctx.stroke();
+    }
+
+    window.addEventListener('resize', renderGraph);
 
     async function toggleConnect() {
       if (bleDevice && bleDevice.gatt.connected) {
@@ -465,7 +506,9 @@
       try {
         const encoder = new TextEncoder();
         await rxCharacteristic.writeValue(encoder.encode(cmd));
-      } catch (err) {}
+      } catch (err) {
+        console.error("BLE Send Error:", err);
+      }
     }
 
     function setTemperature() {
@@ -482,10 +525,42 @@
       sendCommand(`SET_TURN_INT:${intv}`);
     }
 
+    // Toggle Manual Heater Switch Logic
+    function toggleHeaterPower() {
+      heaterManualState = !heaterManualState;
+      document.getElementById('heaterSwitchToggle').classList.toggle('on', heaterManualState);
+
+      if (!heaterManualState) {
+        // If user manually turns OFF heater, disable Auto Control
+        autoTempState = false;
+        document.getElementById('autoTempToggle').classList.remove('on');
+        sendCommand('HEATER_OFF');
+        sendCommand('AUTO_OFF');
+      } else {
+        sendCommand('HEATER_ON');
+      }
+    }
+
+    // Toggle Manual Fan Switch
+    function toggleFanPower() {
+      fanManualState = !fanManualState;
+      document.getElementById('fanSwitchToggle').classList.toggle('on', fanManualState);
+      sendCommand(fanManualState ? 'FAN_ON' : 'FAN_OFF');
+    }
+
+    // Toggle Auto Temperature Logic
     function toggleAutoTemp() {
       autoTempState = !autoTempState;
       document.getElementById('autoTempToggle').classList.toggle('on', autoTempState);
-      sendCommand(autoTempState ? 'AUTO_ON' : 'AUTO_OFF');
+
+      if (autoTempState) {
+        // Turning Auto back ON also enables heater circuit
+        heaterManualState = true;
+        document.getElementById('heaterSwitchToggle').classList.add('on');
+        sendCommand('AUTO_ON');
+      } else {
+        sendCommand('AUTO_OFF');
+      }
     }
 
     function toggleAutoTurn() {
@@ -501,25 +576,32 @@
     }
 
     function handleTelemetry(event) {
-      const decoder = new TextDecoder('utf-8');
-      const data = JSON.parse(decoder.decode(event.target.value));
+      try {
+        const decoder = new TextDecoder('utf-8');
+        const rawJson = decoder.decode(event.target.value);
+        console.log("Telemetry Received:", rawJson);
 
-      document.getElementById('tempVal').textContent = data.temp.toFixed(2) + " °C";
-      document.getElementById('humVal').textContent = data.hum.toFixed(1) + " %";
-      
-      document.getElementById('heaterLed').className = "led-indicator " + (data.heater ? "active-red" : "");
-      document.getElementById('fanLed').className = "led-indicator " + (data.fan ? "active-green" : "");
+        const data = JSON.parse(rawJson);
 
-      const nowStr = new Date().toLocaleTimeString();
-      tempChart.data.labels.push(nowStr);
-      tempChart.data.datasets[0].data.push(data.temp);
-      if (tempChart.data.labels.length > 20) {
-        tempChart.data.labels.shift();
-        tempChart.data.datasets[0].data.shift();
+        if (data.temp !== undefined) {
+          document.getElementById('tempVal').textContent = data.temp.toFixed(2) + " °C";
+          document.getElementById('humVal').textContent = data.hum.toFixed(1) + " %";
+
+          // Sync LEDs and toggle UI states
+          document.getElementById('heaterLed').className = "led-indicator " + (data.heater ? "active-red" : "");
+          document.getElementById('fanLed').className = "led-indicator " + (data.fan ? "active-green" : "");
+
+          // Append telemetry to graph
+          tempDataPoints.push(data.temp);
+          if (tempDataPoints.length > 25) tempDataPoints.shift();
+          renderGraph();
+        }
+      } catch (err) {
+        console.error("Telemetry Error:", err);
       }
-      tempChart.update();
     }
 
+    // Manual Jog Disk Rotation Control
     const disk = document.getElementById('manualDisk');
     let isDragging = false;
     let startAngle = 0;

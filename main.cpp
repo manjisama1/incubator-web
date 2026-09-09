@@ -38,8 +38,8 @@ unsigned long fanOffInterval = 60000;
 bool autoTurnEnabled = true;
 unsigned long turnInterval = 600000; 
 unsigned long turnDurationMs = 4000;  
-int turnDirection = 1;                
-float motorSpeed = 100.0;             
+int turnDirection = 1;                 
+float motorSpeed = 100.0;              
 
 bool heaterState = false;
 bool fanState = true;
@@ -89,7 +89,9 @@ void rotateEggTray(int dir, unsigned long durationMs, float speed) {
 
 void parseCommand(String cmd) {
   cmd.trim();
-  if (cmd == "PWR_ON") mainPower = true;
+  if (cmd == "PWR_ON") {
+    mainPower = true;
+  }
   else if (cmd == "PWR_OFF") {
     mainPower = false;
     autoTempMode = false;
@@ -101,15 +103,34 @@ void parseCommand(String cmd) {
   else if (cmd == "AUTO_ON") {
     autoTempMode = true;
     mainPower = true;
+    heaterState = true;
     manualJogActive = false;
   }
-  else if (cmd == "AUTO_OFF") autoTempMode = false;
-  else if (cmd == "HEATER_ON") { heaterState = true; autoTempMode = false; }
-  else if (cmd == "HEATER_OFF") { heaterState = false; autoTempMode = false; }
-  else if (cmd == "FAN_ON") { fanState = true; fanAlwaysOn = true; }
-  else if (cmd == "FAN_OFF") { fanState = false; fanAlwaysOn = false; }
-  else if (cmd == "AUTO_TURN_ON") autoTurnEnabled = true;
-  else if (cmd == "AUTO_TURN_OFF") autoTurnEnabled = false;
+  else if (cmd == "AUTO_OFF") {
+    autoTempMode = false;
+  }
+  else if (cmd == "HEATER_ON") {
+    heaterState = true;
+    autoTempMode = false;
+  }
+  else if (cmd == "HEATER_OFF") {
+    heaterState = false;
+    autoTempMode = false;
+  }
+  else if (cmd == "FAN_ON") {
+    fanState = true;
+    fanAlwaysOn = true;
+  }
+  else if (cmd == "FAN_OFF") {
+    fanState = false;
+    fanAlwaysOn = false;
+  }
+  else if (cmd == "AUTO_TURN_ON") {
+    autoTurnEnabled = true;
+  }
+  else if (cmd == "AUTO_TURN_OFF") {
+    autoTurnEnabled = false;
+  }
   else if (cmd.startsWith("SET_TEMP:")) {
     targetTempSet = cmd.substring(9).toFloat();
   }
@@ -253,6 +274,10 @@ void loop() {
             if (heaterDutyCycle < 0.0) heaterDutyCycle = 0.0;
           }
         }
+      }
+
+      if (isnan(hum)) {
+        hum = 0.0;
       }
 
       if (now - lastLogTime >= 5000) {

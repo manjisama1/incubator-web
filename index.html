@@ -267,7 +267,7 @@
 
     .chart-container {
       position: relative;
-      height: 180px;
+      height: 200px;
       width: 100%;
       margin-top: 10px;
       background: #1e2226;
@@ -278,6 +278,23 @@
     canvas {
       width: 100%;
       height: 100%;
+      display: block;
+    }
+
+    .graph-tooltip {
+      position: absolute;
+      display: none;
+      background: rgba(10, 15, 20, 0.92);
+      color: #79f779;
+      border: 1px solid #558855;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      pointer-events: none;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+      z-index: 10;
+      white-space: nowrap;
     }
 
     input[type="number"] {
@@ -321,7 +338,6 @@
           </div>
         </div>
 
-        <!-- HEATER MANUAL TOGGLE -->
         <div class="status-row" style="margin-top: 14px;">
           <span>HEATER POWER</span>
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -332,7 +348,6 @@
           </div>
         </div>
 
-        <!-- FAN MANUAL TOGGLE -->
         <div class="status-row">
           <span>CIRCULATION FAN</span>
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -343,7 +358,6 @@
           </div>
         </div>
 
-        <!-- AUTO HEATER CONTROL -->
         <div class="status-row" style="margin-top: 12px; border-top: 1px dashed #a0a7b0; padding-top: 8px;">
           <span>AUTO HEATER CONTROL</span>
           <div id="autoTempToggle" class="toggle-switch on" onclick="toggleAutoTemp()">
@@ -354,7 +368,7 @@
         <div class="input-knob-group" style="margin-top: 10px;">
           <label style="font-size: 0.85rem; font-weight: bold;">SETPOINT (°C):</label>
           <div>
-            <input type="number" id="tempInput" value="37.50" step="0.1" min="30" max="42" />
+            <input type="number" id="tempInput" value="37.5" step="0.1" min="30" max="42" />
             <button class="plate-btn" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setTemperature()">SET</button>
           </div>
         </div>
@@ -403,8 +417,9 @@
 
       <div class="panel-block">
         <div class="panel-title">TEMPERATURE MONITORING GRAPH</div>
-        <div class="chart-container">
+        <div class="chart-container" id="chartContainer">
           <canvas id="tempCanvas"></canvas>
+          <div id="graphTooltip" class="graph-tooltip"></div>
         </div>
       </div>
     </div>
@@ -431,48 +446,197 @@
     let heaterManualState = false;
     let fanManualState = true;
 
-    // Offline HTML5 Canvas Graph Implementation
     const canvas = document.getElementById('tempCanvas');
     const ctx = canvas.getContext('2d');
+    const tooltip = document.getElementById('graphTooltip');
+    const chartContainer = document.getElementById('chartContainer');
+
     let tempDataPoints = [];
+    let pointCoords = [];
+    let hoverIndex = -1;
 
-    function renderGraph() {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
+    const padding = { top: 15, right: 15, bottom: 25, left: 45 };
+    const minTemp = 30;
+    const maxTemp = 42;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw grid lines
-      ctx.strokeStyle = '#3a4146';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < canvas.height; i += 30) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(canvas.width, i);
-        ctx.stroke();
+    function drawSmoothCurve(points) {
+      if (points.length < 2) {
+        if (points.length === 1) {
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          ctx.lineTo(points[0].x, points[0].y);
+          ctx.stroke();
+        }
+        return;
       }
 
-      if (tempDataPoints.length < 2) return;
+      const pts = points.map(p => ({ x: p.x, y: p.y }));
 
       ctx.beginPath();
-      ctx.strokeStyle = '#ff2222';
-      ctx.lineWidth = 2;
+      ctx.moveTo(pts[0].x, pts[0].y);
 
-      const minTemp = 30;
-      const maxTemp = 45;
-      const xStep = canvas.width / (tempDataPoints.length - 1);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i === 0 ? 0 : i - 1];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
 
-      tempDataPoints.forEach((val, idx) => {
-        const normalized = (val - minTemp) / (maxTemp - minTemp);
-        const y = canvas.height - (normalized * canvas.height);
-        const x = idx * xStep;
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
 
-        if (idx === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
 
       ctx.stroke();
     }
+
+    function renderGraph() {
+      canvas.width = chartContainer.clientWidth;
+      canvas.height = chartContainer.clientHeight;
+
+      const graphWidth = canvas.width - padding.left - padding.right;
+      const graphHeight = canvas.height - padding.top - padding.bottom;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = '#2d353b';
+      ctx.fillStyle = '#788896';
+      ctx.font = '10px "Courier New", monospace';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+
+      const tempStep = 2;
+      for (let t = minTemp; t <= maxTemp; t += tempStep) {
+        const norm = (t - minTemp) / (maxTemp - minTemp);
+        const y = padding.top + graphHeight - (norm * graphHeight);
+
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(canvas.width - padding.right, y);
+        ctx.stroke();
+
+        ctx.fillText(t + "°C", padding.left - 6, y);
+      }
+
+      ctx.strokeStyle = '#4a545e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padding.left, padding.top, graphWidth, graphHeight);
+
+      pointCoords = [];
+      if (tempDataPoints.length < 1) return;
+
+      const xStep = tempDataPoints.length > 1 ? graphWidth / (tempDataPoints.length - 1) : 0;
+
+      tempDataPoints.forEach((pt, idx) => {
+        const norm = (pt.temp - minTemp) / (maxTemp - minTemp);
+        const y = padding.top + graphHeight - (norm * graphHeight);
+        const x = tempDataPoints.length === 1 ? padding.left + graphWidth / 2 : padding.left + (idx * xStep);
+        pointCoords.push({ x, y, temp: pt.temp, time: pt.time, index: idx });
+      });
+
+      if (pointCoords.length > 1) {
+        ctx.strokeStyle = '#ff3333';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        drawSmoothCurve(pointCoords);
+      }
+
+      pointCoords.forEach((pt) => {
+        const isHovered = (pt.index === hoverIndex);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, isHovered ? 6 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 68, 68, 0.55)';
+        ctx.strokeStyle = '#1e2226';
+        ctx.lineWidth = 1.5;
+        ctx.fill();
+        if (isHovered) ctx.stroke();
+      });
+
+      if (hoverIndex >= 0 && hoverIndex < pointCoords.length) {
+        const pt = pointCoords[hoverIndex];
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = '#22ff22';
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+        ctx.moveTo(pt.x, padding.top);
+        ctx.lineTo(pt.x, padding.top + graphHeight);
+        ctx.moveTo(padding.left, pt.y);
+        ctx.lineTo(padding.left + graphWidth, pt.y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+      }
+
+      if (tempDataPoints.length > 0) {
+        ctx.fillStyle = '#788896';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(tempDataPoints[0].time, padding.left, canvas.height - padding.bottom + 6);
+
+        if (tempDataPoints.length > 1) {
+          ctx.textAlign = 'right';
+          ctx.fillText(tempDataPoints[tempDataPoints.length - 1].time, canvas.width - padding.right, canvas.height - padding.bottom + 6);
+        }
+      }
+    }
+
+    function handleCanvasInteraction(e) {
+      if (pointCoords.length === 0) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      const mouseX = clientX - rect.left;
+      const mouseY = clientY - rect.top;
+
+      let closestIdx = -1;
+      let minDistance = Infinity;
+
+      pointCoords.forEach((pt) => {
+        const dist = Math.hypot(pt.x - mouseX, pt.y - mouseY);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestIdx = pt.index;
+        }
+      });
+
+      if (minDistance < 25 && closestIdx !== -1) {
+        hoverIndex = closestIdx;
+        const pt = pointCoords[closestIdx];
+
+        tooltip.style.display = 'block';
+        tooltip.innerHTML = `<strong>${pt.temp.toFixed(1)} °C</strong><br/><span style="color:#a1c0a1; font-size:0.7rem;">Time: ${pt.time}</span>`;
+
+        let left = pt.x + 12;
+        let top = pt.y - 30;
+
+        if (left + 110 > canvas.width) left = pt.x - 110;
+        if (top < 5) top = pt.y + 10;
+
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+      } else {
+        hoverIndex = -1;
+        tooltip.style.display = 'none';
+      }
+
+      renderGraph();
+    }
+
+    canvas.addEventListener('mousemove', handleCanvasInteraction);
+    canvas.addEventListener('touchstart', handleCanvasInteraction);
+    canvas.addEventListener('touchmove', handleCanvasInteraction);
+
+    canvas.addEventListener('mouseleave', () => {
+      hoverIndex = -1;
+      tooltip.style.display = 'none';
+      renderGraph();
+    });
 
     window.addEventListener('resize', renderGraph);
 
@@ -512,7 +676,7 @@
     }
 
     function setTemperature() {
-      const val = parseFloat(document.getElementById('tempInput').value).toFixed(2);
+      const val = parseFloat(document.getElementById('tempInput').value).toFixed(1);
       sendCommand(`SET_TEMP:${val}`);
     }
 
@@ -525,13 +689,11 @@
       sendCommand(`SET_TURN_INT:${intv}`);
     }
 
-    // Toggle Manual Heater Switch Logic
     function toggleHeaterPower() {
       heaterManualState = !heaterManualState;
       document.getElementById('heaterSwitchToggle').classList.toggle('on', heaterManualState);
 
       if (!heaterManualState) {
-        // If user manually turns OFF heater, disable Auto Control
         autoTempState = false;
         document.getElementById('autoTempToggle').classList.remove('on');
         sendCommand('HEATER_OFF');
@@ -541,20 +703,17 @@
       }
     }
 
-    // Toggle Manual Fan Switch
     function toggleFanPower() {
       fanManualState = !fanManualState;
       document.getElementById('fanSwitchToggle').classList.toggle('on', fanManualState);
       sendCommand(fanManualState ? 'FAN_ON' : 'FAN_OFF');
     }
 
-    // Toggle Auto Temperature Logic
     function toggleAutoTemp() {
       autoTempState = !autoTempState;
       document.getElementById('autoTempToggle').classList.toggle('on', autoTempState);
 
       if (autoTempState) {
-        // Turning Auto back ON also enables heater circuit
         heaterManualState = true;
         document.getElementById('heaterSwitchToggle').classList.add('on');
         sendCommand('AUTO_ON');
@@ -584,15 +743,16 @@
         const data = JSON.parse(rawJson);
 
         if (data.temp !== undefined) {
-          document.getElementById('tempVal').textContent = data.temp.toFixed(2) + " °C";
+          document.getElementById('tempVal').textContent = data.temp.toFixed(1) + " °C";
           document.getElementById('humVal').textContent = data.hum.toFixed(1) + " %";
 
-          // Sync LEDs and toggle UI states
           document.getElementById('heaterLed').className = "led-indicator " + (data.heater ? "active-red" : "");
           document.getElementById('fanLed').className = "led-indicator " + (data.fan ? "active-green" : "");
 
-          // Append telemetry to graph
-          tempDataPoints.push(data.temp);
+          const now = new Date();
+          const timeStr = now.toTimeString().split(' ')[0];
+
+          tempDataPoints.push({ temp: data.temp, time: timeStr });
           if (tempDataPoints.length > 25) tempDataPoints.shift();
           renderGraph();
         }
@@ -601,7 +761,6 @@
       }
     }
 
-    // Manual Jog Disk Rotation Control
     const disk = document.getElementById('manualDisk');
     let isDragging = false;
     let startAngle = 0;
@@ -651,6 +810,8 @@
     disk.addEventListener('touchstart', startDrag);
     window.addEventListener('touchmove', doDrag);
     window.addEventListener('touchend', stopDrag);
+
+    renderGraph();
   </script>
 </body>
 </html>
